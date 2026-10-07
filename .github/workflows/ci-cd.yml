@@ -48,7 +48,11 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          # Deux tags : le SHA sert aux déploiements suivants, « latest »
+          # uniquement au premier, quand les manifests sont appliqués à la main.
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
           # Le cache accélère nettement les builds suivants : Maven ne
           # retélécharge pas toutes ses dépendances à chaque fois.
           cache-from: type=gha
