@@ -11,18 +11,12 @@ En production : https://restaurateurs.julienprr.com
 ## Démarrer en local
 
 ```bash
-docker compose up -d          # Postgres + Mailpit, depuis le monorepo d'archive
+docker compose up -d          # Postgres + boîte mail de test
 mvn spring-boot:run           # http://localhost:8081
 ```
 
-Si tu n'as plus le `docker-compose.yml`, deux conteneurs suffisent :
-
-```bash
-docker run -d --name resto-db -p 5432:5432 \
-  -e POSTGRES_DB=restaurateurs -e POSTGRES_USER=resto -e POSTGRES_PASSWORD=resto \
-  postgres:16-alpine
-docker run -d --name resto-mail -p 1025:1025 -p 8025:8025 axllent/mailpit
-```
+Pour tout arrêter : `docker compose down`. Les données survivent, elles vivent
+dans un volume. `docker compose down -v` les efface aussi.
 
 | Service | URL |
 |---|---|

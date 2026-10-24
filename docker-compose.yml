@@ -1,0 +1,30 @@
+# Dépendances de développement local uniquement.
+# En production (k3s), Postgres et le SMTP sont fournis par le cluster.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: resto-db
+    environment:
+      POSTGRES_DB: restaurateurs
+      POSTGRES_USER: resto
+      POSTGRES_PASSWORD: resto
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resto -d restaurateurs"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Boîte mail factice : SMTP sur 1025, interface web sur http://localhost:8025
+  mail:
+    image: axllent/mailpit:latest
+    container_name: resto-mail
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  db-data:
