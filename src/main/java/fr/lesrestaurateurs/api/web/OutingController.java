@@ -4,8 +4,11 @@ import fr.lesrestaurateurs.api.domain.User;
 import fr.lesrestaurateurs.api.security.CurrentUser;
 import fr.lesrestaurateurs.api.service.GroupEventService;
 import fr.lesrestaurateurs.api.service.OutingService;
+import fr.lesrestaurateurs.api.service.RatingService;
 import fr.lesrestaurateurs.api.web.dto.OutingResponse;
+import fr.lesrestaurateurs.api.web.dto.PastOutingResponse;
 import fr.lesrestaurateurs.api.web.dto.PlanOutingRequest;
+import fr.lesrestaurateurs.api.web.dto.RateOutingRequest;
 import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
@@ -16,21 +19,25 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Prévoir une sortie, la consulter, la déplacer ou l'annuler. */
+/** Prévoir une sortie, la consulter, la déplacer, l'annuler, puis la noter. */
 @RestController
 @RequestMapping("/api")
 public class OutingController {
 
     private final OutingService outingService;
+    private final RatingService ratingService;
     private final GroupEventService events;
 
-    public OutingController(OutingService outingService, GroupEventService events) {
+    public OutingController(OutingService outingService, RatingService ratingService,
+                            GroupEventService events) {
         this.outingService = outingService;
+        this.ratingService = ratingService;
         this.events = events;
     }
 
@@ -56,9 +63,9 @@ public class OutingController {
         return body;
     }
 
-    /** Les sorties passées, de la plus récente à la plus ancienne. */
+    /** Les sorties passées et leurs notes, de la plus récente à la plus ancienne. */
     @GetMapping("/groups/{groupId}/outings")
-    public List<OutingResponse> past(@PathVariable UUID groupId, @CurrentUser User user) {
+    public List<PastOutingResponse> past(@PathVariable UUID groupId, @CurrentUser User user) {
         return outingService.findPast(groupId, user);
     }
 
@@ -80,5 +87,18 @@ public class OutingController {
     public void cancel(@PathVariable UUID id, @CurrentUser User user) {
         UUID groupId = outingService.cancel(id, user);
         events.publish(groupId, "outing_changed", Map.of("outingId", id.toString()));
+    }
+
+    /**
+     * Note une sortie passée, ou modifie sa note. Un PUT : il n'y a qu'une
+     * note par membre et par sortie, la renvoyer la remplace.
+     */
+    @PutMapping("/outings/{id}/rating")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void rate(@PathVariable UUID id,
+                     @Valid @RequestBody RateOutingRequest body,
+                     @CurrentUser User user) {
+        UUID groupId = ratingService.rate(id, body.score(), body.comment(), user);
+        events.publish(groupId, "ratings_changed", Map.of("outingId", id.toString()));
     }
 }

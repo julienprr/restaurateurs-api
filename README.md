@@ -53,6 +53,7 @@ service/    Règles métier
   OutingService       cycle de vie d'une sortie, règles de décision
   OutingClosure       clôture quotidienne des sorties passées (9 h, Paris)
   VoteService         vote bascule, sur la sortie en préparation
+  RatingService       notes des sorties passées, une par membre
   GroupEventService   connexions SSE en mémoire, diffusion par groupe
   MailService         envoi asynchrone, versions texte et HTML
   Tokens, InviteCodes génération et hachage
@@ -87,7 +88,8 @@ db/migration/   Schéma, versionné par Flyway
 | POST | `/api/restaurants/{id}/vote` | voter, bascule |
 | POST | `/api/groups/{id}/outings` | prévoir une sortie, ouvre le vote |
 | GET | `/api/groups/{id}/outings/planned` | la sortie en préparation, ou `{"outing": null}` |
-| GET | `/api/groups/{id}/outings` | les sorties passées |
+| GET | `/api/groups/{id}/outings` | les sorties passées, avec leurs notes et leur moyenne |
+| PUT | `/api/outings/{id}/rating` | noter une sortie passée (1 à 5, commentaire facultatif), ou modifier sa note |
 | PATCH | `/api/outings/{id}` | changer la date |
 | POST | `/api/outings/{id}/cancel` | annuler |
 | POST | `/api/outings/{id}/decide?mode=votes\|hasard` | trancher, rejouable |

@@ -411,7 +411,7 @@ class OutingServiceTest extends IntegrationTest {
             assertThat(closed.status()).isEqualTo("PASSEE");
             assertThat(fixtures.statusOf(sushi)).isEqualTo(RestaurantStatus.DEJA_FAIT);
             assertThat(fixtures.statusOf(pizza)).isEqualTo(RestaurantStatus.A_TESTER);
-            assertThat(outings.findPast(group.getId(), alice)).extracting(OutingResponse::id)
+            assertThat(outings.findPast(group.getId(), alice)).extracting(past -> past.outing().id())
                     .containsExactly(outing.id());
             assertThat(outings.findPlanned(group.getId(), alice)).isEmpty();
         }

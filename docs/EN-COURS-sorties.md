@@ -1,7 +1,7 @@
 # En cours : les sorties, les notes et le classement
 
-Branche `feature/sorties`. Le backend des sorties est terminé et testé ;
-la suite commence par le front.
+Branche `feature/sorties`, dans l'API et dans le front. Étapes 1 à 3
+faites (sorties et notes) ; la suite est l'étape 4, historique et classement.
 
 À lire en entier avant de reprendre.
 
@@ -131,14 +131,32 @@ Dépôt `restaurateurs-web`, branche `feature/sorties`, commit `44f0d8c`.
 
 **Déploiement** : l'API et le front sont prêts tous les deux et doivent
 partir ensemble (l'ancien front appelle `/groups/{id}/draw`, supprimée).
-Prendre un dump de la production juste avant, la migration V2 s'appliquant
-au démarrage de l'API.
+Prendre un dump de la production juste avant, les migrations V2 et V3
+s'appliquant au démarrage de l'API.
+
+## Étape 3, les notes : faite
+
+Décisions prises avec Julien le 31 octobre 2026 :
+
+- on note depuis un onglet **« Nos sorties »**, qui accueillera le
+  classement à l'étape 4 ;
+- les notes des autres sont **visibles avant d'avoir noté** ;
+- on peut noter ou modifier sa note **sans limite de temps**.
+
+Côté API :
+
+- migration `V3__ratings.sql`, séparée de V2 : V2 a été vérifiée sur une
+  copie de la production, la retoucher annulerait cette vérification ;
+- `PUT /api/outings/{id}/rating`, réservé aux sorties `PASSEE` ;
+- l'écriture est un `insert ... on conflict do update` : deux envois
+  simultanés ne peuvent pas heurter la contrainte d'unicité (testé) ;
+- `GET /api/groups/{id}/outings` renvoie désormais
+  `[{outing, average, ratings}]` ; `average` est nul sans note ;
+- événement SSE `ratings_changed` (`outingId`).
+
+Côté front : `PastOutings.svelte` et `RatingSheet.svelte`.
 
 ## Ce qui reste, dans l'ordre
-
-**3. Notes et commentaires**
-- Table `ratings`, note de 1 à 5, commentaire facultatif, modifiable
-- Une note par membre et par sortie
 
 **4. Historique et classement**
 - Écran « Nos sorties »

@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -170,9 +171,54 @@ class OutingApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$[*].id", hasItem(outingId)));
 
         mvc.perform(get("/api/groups/{id}/outings", group.getId()).cookie(session))
-                .andExpect(jsonPath("$[0].id").value(outingId))
-                .andExpect(jsonPath("$[0].status").value("PASSEE"))
-                .andExpect(jsonPath("$[0].restaurant.status").value("DEJA_FAIT"));
+                .andExpect(jsonPath("$[0].outing.id").value(outingId))
+                .andExpect(jsonPath("$[0].outing.status").value("PASSEE"))
+                .andExpect(jsonPath("$[0].outing.restaurant.status").value("DEJA_FAIT"));
+    }
+
+    @Test
+    @DisplayName("noter : 204, puis la note dans l'historique ; note hors bornes : 400")
+    void rating() throws Exception {
+        String created = mvc.perform(post("/api/groups/{id}/outings", group.getId())
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(dateBody(NEXT_WEEK)))
+                .andReturn().getResponse().getContentAsString();
+        String outingId = JsonPath.read(created, "$.id");
+        mvc.perform(post("/api/outings/{id}/decide", outingId).cookie(session));
+        mvc.perform(post("/api/admin/outings/close")
+                .header("X-Admin-Token", ADMIN_TOKEN)
+                .param("today", NEXT_WEEK.plusDays(1).toString()));
+
+        mvc.perform(put("/api/outings/{id}/rating", outingId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":4}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(put("/api/outings/{id}/rating", outingId)
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":6}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("La note va de 1 à 5."));
+        mvc.perform(put("/api/outings/{id}/rating", outingId)
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"Sans note\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Choisis une note."));
+
+        mvc.perform(put("/api/outings/{id}/rating", outingId)
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":4,\"comment\":\"On y retourne\"}"))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/groups/{id}/outings", group.getId()).cookie(session))
+                .andExpect(jsonPath("$[0].average").value(4.0))
+                .andExpect(jsonPath("$[0].ratings[0].author").value("Alice"))
+                .andExpect(jsonPath("$[0].ratings[0].score").value(4))
+                .andExpect(jsonPath("$[0].ratings[0].comment").value("On y retourne"))
+                .andExpect(jsonPath("$[0].ratings[0].mine").value(true));
     }
 
     private static String dateBody(LocalDate date) {

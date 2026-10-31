@@ -3,16 +3,20 @@ package fr.lesrestaurateurs.api.service;
 import fr.lesrestaurateurs.api.domain.DecisionMode;
 import fr.lesrestaurateurs.api.domain.Outing;
 import fr.lesrestaurateurs.api.domain.OutingStatus;
+import fr.lesrestaurateurs.api.domain.Rating;
 import fr.lesrestaurateurs.api.domain.Restaurant;
 import fr.lesrestaurateurs.api.domain.RestaurantStatus;
 import fr.lesrestaurateurs.api.domain.User;
 import fr.lesrestaurateurs.api.domain.UserGroup;
 import fr.lesrestaurateurs.api.repo.OutingRepository;
+import fr.lesrestaurateurs.api.repo.RatingRepository;
 import fr.lesrestaurateurs.api.repo.RestaurantRepository;
 import fr.lesrestaurateurs.api.repo.VoteRepository;
 import fr.lesrestaurateurs.api.web.ApiException;
 import fr.lesrestaurateurs.api.web.dto.DrawResult;
 import fr.lesrestaurateurs.api.web.dto.OutingResponse;
+import fr.lesrestaurateurs.api.web.dto.PastOutingResponse;
+import fr.lesrestaurateurs.api.web.dto.RatingResponse;
 import fr.lesrestaurateurs.api.web.dto.RestaurantResponse;
 import java.security.SecureRandom;
 import java.time.LocalDate;
@@ -61,13 +65,16 @@ public class OutingService {
     private final OutingRepository outings;
     private final RestaurantRepository restaurants;
     private final VoteRepository votes;
+    private final RatingRepository ratings;
     private final GroupService groupService;
 
     public OutingService(OutingRepository outings, RestaurantRepository restaurants,
-                         VoteRepository votes, GroupService groupService) {
+                         VoteRepository votes, RatingRepository ratings,
+                         GroupService groupService) {
         this.outings = outings;
         this.restaurants = restaurants;
         this.votes = votes;
+        this.ratings = ratings;
         this.groupService = groupService;
     }
 
@@ -137,11 +144,25 @@ public class OutingService {
         return outings.findPlannedForGroup(groupId).map(this::toResponse);
     }
 
+    /** Les sorties passées avec leurs notes, de la plus récente à la plus ancienne. */
     @Transactional(readOnly = true)
-    public List<OutingResponse> findPast(UUID groupId, User user) {
+    public List<PastOutingResponse> findPast(UUID groupId, User user) {
         groupService.requireMembership(groupId, user);
-        return outings.findByGroupAndStatus(groupId, OutingStatus.PASSEE).stream()
-                .map(this::toResponse)
+        List<Outing> past = outings.findByGroupAndStatus(groupId, OutingStatus.PASSEE);
+        if (past.isEmpty()) {
+            return List.of();
+        }
+
+        // Toutes les notes en une requête, puis réparties par sortie.
+        Map<UUID, List<RatingResponse>> byOuting = new HashMap<>();
+        for (Rating rating : ratings.findForOutings(past.stream().map(Outing::getId).toList())) {
+            byOuting.computeIfAbsent(rating.getOuting().getId(), id -> new ArrayList<>())
+                    .add(RatingResponse.from(rating, user));
+        }
+
+        return past.stream()
+                .map(outing -> PastOutingResponse.of(toResponse(outing),
+                        byOuting.getOrDefault(outing.getId(), List.of())))
                 .toList();
     }
 
