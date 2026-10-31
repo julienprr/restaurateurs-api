@@ -59,6 +59,13 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Vrai PostgreSQL pour les tests : la migration repose sur un index
+             partiel, qu'une base embarquée comme H2 ne reproduirait pas. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

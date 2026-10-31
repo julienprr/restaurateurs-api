@@ -9,7 +9,6 @@ import fr.lesrestaurateurs.api.repo.OutingRepository;
 import fr.lesrestaurateurs.api.repo.RestaurantRepository;
 import fr.lesrestaurateurs.api.repo.VoteRepository;
 import fr.lesrestaurateurs.api.web.ApiException;
-import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,10 +63,5 @@ public class VoteService {
                         () -> votes.save(new Vote(outing, restaurant, user)));
 
         return groupId;
-    }
-
-    @Transactional(readOnly = true)
-    public Set<UUID> votedBy(UUID outingId, User user) {
-        return Set.copyOf(votes.findRestaurantIdsVotedBy(outingId, user.getId()));
     }
 }

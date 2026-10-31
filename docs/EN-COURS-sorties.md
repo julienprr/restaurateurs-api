@@ -1,7 +1,7 @@
 # En cours : les sorties, les notes et le classement
 
-Branche `feature/sorties`. **Le projet ne compile pas en l'état**, c'est normal
-et documenté plus bas.
+Branche `feature/sorties`. Le backend des sorties est terminé et testé ;
+la suite commence par le front.
 
 À lire en entier avant de reprendre.
 
@@ -45,6 +45,12 @@ Décisions actées :
 - **Le classement est assumé comme un jeu.** Julien a écarté mes réserves sur
   la pression sociale et la fragilité statistique : ne pas y revenir.
 - **Tout le monde peut noter**, sans gérer qui était présent.
+- **« Choisir ce soir » reste**, ajouté le 31 octobre 2026 : un clic crée la
+  sortie du jour et tire le restaurant au sort, sans vote. Si une sortie est
+  déjà prévue ce soir, on tranche dessus. Si elle est prévue un autre jour,
+  l'API répond 409 et **le front propose de l'avancer à ce soir**
+  (`PATCH /api/outings/{id}`), puis rappelle la route. Autoriser deux sorties
+  planifiées a été écarté.
 
 ## Ce qui est fait
 
@@ -77,32 +83,46 @@ sortie est refusé.
 > est irréversible : elle supprime une contrainte d'unicité, rend `outing_id`
 > obligatoire et efface les votes orphelins.
 
-## Ce qui ne compile pas, et pourquoi
+## Étape 1, le backend : faite
 
-Trois erreurs, toutes dues au passage de « votes du groupe » à « votes de la
-sortie » :
+- Routes : voir le tableau du README. Décider se fait désormais sur une
+  sortie (`POST /api/outings/{id}/decide`), la route « effacer les votes » a
+  disparu : chaque sortie repart de zéro.
+- `RestaurantService` affiche les voix de la sortie en préparation, zéro sans
+  sortie.
+- `OutingClosure` clôt chaque jour à 9 h (heure de Paris) les sorties dont la
+  date est passée. Le matin plutôt que la nuit, pour l'email « Notez la
+  sortie » de l'étape 5.
+- `POST /api/admin/outings/close?today=AAAA-MM-JJ`, en-tête `X-Admin-Token`,
+  déclenche la clôture à la main. `today` simule une autre date. Sans
+  `ADMIN_TOKEN`, la route répond 404.
+- `POST /api/groups/{id}/outings/tonight` : « choisir ce soir », création et
+  tirage dans une seule transaction. Un tirage impossible ne laisse donc pas
+  de sortie vide bloquer le groupe.
+- Toutes les dates sont jugées dans le fuseau `Europe/Paris`
+  (`OutingService.ZONE`), pas celui du serveur.
+- Tests : `OutingServiceTest` (cycle de vie, décision, cloisonnement, clics
+  simultanés) et `OutingApiTest`, contre un vrai PostgreSQL via Testcontainers.
 
-| Fichier | Appel devenu caduc | À faire |
-|---|---|---|
-| `RestaurantService:45` | `countByRestaurantForGroup` | compter sur la sortie en préparation, ou zéro s'il n'y en a pas |
-| `DecisionController:48` | `voteService.clearVotes` | supprimer la route : chaque sortie repart de zéro |
-| `DecisionController:61` | `voteService.draw` | déléguer à `outingService.decide` |
+Corrigé au passage dans le code de départ : `OutingService` renvoyait des
+entités (contraire à la règle des DTO), et `plan()` attrapait la violation
+d'index autour d'un `save` sans flush, ce qui laissait l'erreur sortir en 500
+au commit. Un test le vérifie.
+
+Événements SSE à câbler dans le front : `outing_changed` (`outingId`) à
+chaque création, changement de date, annulation ou clôture ; `draw_result`
+garde son nom et gagne un champ `outingId`.
 
 ## Ce qui reste, dans l'ordre
-
-**1. Finir le backend des sorties**
-- `OutingController` : prévoir, consulter, reprogrammer, annuler
-- `DecisionController` : décider sur la sortie, retirer « effacer les votes »
-- `RestaurantService` : votes de la sortie en préparation
-- Job quotidien de clôture, à côté de `ExpiredTokenCleanup`
-- Une route d'administration pour déclencher la clôture à la main, sinon
-  tester demande d'attendre le lendemain
-- **Tests** : cycle de vie, cloisonnement des groupes, règles de décision
 
 **2. Le front**
 - Écran de vote conditionnel : pas de sortie, sortie sans restaurant, sortie
   décidée
 - Sélecteur de date
+- Bouton « Choisir ce soir », avec la proposition d'avancer la sortie prévue
+  en cas de 409
+- Le bouton de tirage actuel appelle `/groups/{id}/draw`, qui n'existe plus :
+  le brancher sur `/outings/{id}/decide`
 - `events.js` : nouveaux événements SSE
 
 **3. Notes et commentaires**
@@ -118,7 +138,7 @@ sortie » :
 
 | Email | Déclencheur | Destinataires |
 |---|---|---|
-| Allez voter | création d'une sortie | les membres, **sauf le créateur** |
+| Allez voter | création d'une sortie, **sauf par « choisir ce soir »** | les membres, **sauf le créateur** |
 | On va là | décision du restaurant | les membres, **sauf le décideur** |
 | Notez la sortie | job de clôture | tous les membres |
 | Nouvelle version | lancé à la main, une fois | tous les inscrits |

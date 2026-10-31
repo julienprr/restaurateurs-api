@@ -34,19 +34,25 @@ Mailpit. Le lien de connexion est aussi écrit dans les logs.
 mvn test
 ```
 
+Les tests d'intégration démarrent leur propre PostgreSQL dans Docker
+(Testcontainers) : Docker doit tourner, la base de `docker compose` n'est pas
+touchée.
+
 ## Carte du code
 
 ```
 config/     AppProperties (réglages app.*), WebConfig (@CurrentUser, async, cron)
-domain/     Entités JPA : User, UserGroup, Restaurant, Vote, AuthSession,
-            MagicLinkToken, RestaurantStatus
+domain/     Entités JPA : User, UserGroup, Restaurant, Outing, Vote, AuthSession,
+            MagicLinkToken, et leurs énumérations
 repo/       Repositories Spring Data
 security/   AuthFilter (résout le cookie), @CurrentUser + son resolver (403/401)
 service/    Règles métier
   AuthService         liens magiques, sessions, anti-spam
   GroupService        création, invitations, appartenance
   RestaurantService   ajout, statut, suppression
-  VoteService         vote bascule, tirage au sort, règles de décision
+  OutingService       cycle de vie d'une sortie, règles de décision
+  OutingClosure       clôture quotidienne des sorties passées (9 h, Paris)
+  VoteService         vote bascule, sur la sortie en préparation
   GroupEventService   connexions SSE en mémoire, diffusion par groupe
   MailService         envoi asynchrone, versions texte et HTML
   Tokens, InviteCodes génération et hachage
@@ -79,8 +85,14 @@ db/migration/   Schéma, versionné par Flyway
 | DELETE | `/api/restaurants/{id}` | retirer |
 | POST | `/api/maps/preview` | lit un lien Google Maps |
 | POST | `/api/restaurants/{id}/vote` | voter, bascule |
-| DELETE | `/api/groups/{id}/votes` | remettre les votes à zéro |
-| POST | `/api/groups/{id}/draw?mode=votes\|hasard` | trancher |
+| POST | `/api/groups/{id}/outings` | prévoir une sortie, ouvre le vote |
+| GET | `/api/groups/{id}/outings/planned` | la sortie en préparation, ou `{"outing": null}` |
+| GET | `/api/groups/{id}/outings` | les sorties passées |
+| PATCH | `/api/outings/{id}` | changer la date |
+| POST | `/api/outings/{id}/cancel` | annuler |
+| POST | `/api/outings/{id}/decide?mode=votes\|hasard` | trancher, rejouable |
+| POST | `/api/groups/{id}/outings/tonight` | « choisir ce soir » : sortie du jour tranchée d'un coup, 409 si une autre est prévue |
+| POST | `/api/admin/outings/close?today=AAAA-MM-JJ` | clôture à la main, en-tête `X-Admin-Token` |
 | GET | `/api/groups/{id}/events` | flux temps réel (SSE) |
 | GET | `/api/health` | sonde de vie |
 
@@ -98,6 +110,7 @@ Tout passe par des variables d'environnement.
 | `SMTP_AUTH` / `SMTP_STARTTLS` | `false` | `true` en production |
 | `APP_BASE_URL` | `http://localhost:5173` | **sert à construire les liens de connexion** |
 | `MAIL_FROM` | `les-restaurateurs@localhost` | expéditeur |
+| `ADMIN_TOKEN` | vide | jeton des routes `/api/admin/**`. Vide : elles répondent 404 |
 | `COOKIE_SECURE` | `false` | `true` en production |
 | `LOG_MAGIC_LINK` | `true` | `false` en production |
 

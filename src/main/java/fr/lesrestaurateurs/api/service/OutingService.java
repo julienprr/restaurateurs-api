@@ -11,10 +11,17 @@ import fr.lesrestaurateurs.api.repo.OutingRepository;
 import fr.lesrestaurateurs.api.repo.RestaurantRepository;
 import fr.lesrestaurateurs.api.repo.VoteRepository;
 import fr.lesrestaurateurs.api.web.ApiException;
+import fr.lesrestaurateurs.api.web.dto.DrawResult;
+import fr.lesrestaurateurs.api.web.dto.OutingResponse;
+import fr.lesrestaurateurs.api.web.dto.RestaurantResponse;
 import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +37,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>C'est la date qui mène la danse : on prévoit, on vote, et une fois la date
  * passée la sortie se clôt d'elle-même. Aucune action de membre ne la fait
  * basculer en « passée ».
+ *
+ * <p>Les méthodes publiques renvoient des DTO : les relations d'une sortie sont
+ * paresseuses et {@code open-in-view} est désactivé.
  */
 @Service
 public class OutingService {
@@ -37,6 +47,16 @@ public class OutingService {
     private static final Logger log = LoggerFactory.getLogger(OutingService.class);
 
     private static final SecureRandom RANDOM = new SecureRandom();
+
+    /**
+     * Le fuseau des sorties. Celui du serveur ne convient pas : en UTC, la
+     * journée française bascule une ou deux heures trop tard.
+     */
+    public static final ZoneId ZONE = ZoneId.of("Europe/Paris");
+
+    /** « samedi 7 novembre », pour les messages d'erreur. */
+    private static final DateTimeFormatter DAY =
+            DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH);
 
     private final OutingRepository outings;
     private final RestaurantRepository restaurants;
@@ -58,45 +78,79 @@ public class OutingService {
      * pourrait pas encore voter n'aurait pas d'utilité.
      */
     @Transactional
-    public Outing plan(UUID groupId, LocalDate date, User user) {
+    public OutingResponse plan(UUID groupId, LocalDate date, User user) {
         UserGroup group = groupService.requireMembership(groupId, user);
+        requireNotPast(date);
 
-        if (date.isBefore(LocalDate.now())) {
-            throw ApiException.badRequest("Cette date est déjà passée.");
+        // Vérification préalable pour le cas courant, avec un message clair.
+        // L'index en base reste le vrai garde-fou face aux clics simultanés.
+        if (outings.findPlannedForGroup(groupId).isPresent()) {
+            throw alreadyPlanned();
+        }
+        return toResponse(create(group, date, user));
+    }
+
+    /**
+     * « Choisir ce soir » : une sortie pour aujourd'hui, tranchée dans le même
+     * geste, sans passer par un vote.
+     *
+     * <p>Tout se fait dans une seule transaction : si le tirage échoue, faute
+     * d'adresse à tester, aucune sortie vide ne reste à bloquer le groupe.
+     *
+     * <p>Si une sortie est déjà prévue ce soir, on tranche dessus. Si elle est
+     * prévue un autre jour, refus en 409 : au front de proposer de l'avancer
+     * à ce soir, puis de rappeler cette route.
+     */
+    @Transactional
+    public DrawResult decideTonight(UUID groupId, DecisionMode mode, User user) {
+        UserGroup group = groupService.requireMembership(groupId, user);
+        LocalDate today = LocalDate.now(ZONE);
+
+        Optional<Outing> planned = outings.findPlannedForGroup(groupId);
+        if (planned.isPresent() && !planned.get().getPlannedFor().equals(today)) {
+            throw ApiException.conflict("Une sortie est déjà prévue le "
+                    + planned.get().getPlannedFor().format(DAY)
+                    + ". Avance-la à ce soir pour la trancher maintenant.");
         }
 
+        Outing outing = planned.orElseGet(() -> create(group, today, user));
+        return decideOn(outing, mode, user);
+    }
+
+    private Outing create(UserGroup group, LocalDate date, User user) {
         try {
-            Outing outing = outings.save(new Outing(group, date, user));
+            // saveAndFlush et non save : sans flush, l'INSERT partirait au
+            // commit, hors de ce try, et la violation d'index finirait en 500.
+            Outing outing = outings.saveAndFlush(new Outing(group, date, user));
             log.info("Sortie du {} prévue dans « {} » par {}", date, group.getName(), user.getEmail());
             return outing;
         } catch (DataIntegrityViolationException e) {
             // L'index partiel outings_one_planned_per_group a parlé : deux
-            // membres ont cliqué en même temps, ou une sortie était déjà ouverte.
-            throw ApiException.badRequest(
-                    "Une sortie est déjà prévue. Termine-la ou annule-la avant d'en prévoir une autre.");
+            // membres ont cliqué en même temps.
+            throw alreadyPlanned();
         }
     }
 
     @Transactional(readOnly = true)
-    public Optional<Outing> findPlanned(UUID groupId, User user) {
+    public Optional<OutingResponse> findPlanned(UUID groupId, User user) {
         groupService.requireMembership(groupId, user);
-        return outings.findPlannedForGroup(groupId);
+        return outings.findPlannedForGroup(groupId).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
-    public List<Outing> findPast(UUID groupId, User user) {
+    public List<OutingResponse> findPast(UUID groupId, User user) {
         groupService.requireMembership(groupId, user);
-        return outings.findByGroupAndStatus(groupId, OutingStatus.PASSEE);
+        return outings.findByGroupAndStatus(groupId, OutingStatus.PASSEE).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional
-    public Outing reschedule(UUID outingId, LocalDate newDate, User user) {
+    public OutingResponse reschedule(UUID outingId, LocalDate newDate, User user) {
         Outing outing = requirePlanned(outingId, user);
-        if (newDate.isBefore(LocalDate.now())) {
-            throw ApiException.badRequest("Cette date est déjà passée.");
-        }
+        requireNotPast(newDate);
         outing.reschedule(newDate);
-        return outing;
+        return toResponse(outing);
     }
 
     @Transactional
@@ -120,8 +174,11 @@ public class OutingService {
      *             le premier de la liste.
      */
     @Transactional
-    public Decision decide(UUID outingId, DecisionMode mode, User user) {
-        Outing outing = requirePlanned(outingId, user);
+    public DrawResult decide(UUID outingId, DecisionMode mode, User user) {
+        return decideOn(requirePlanned(outingId, user), mode, user);
+    }
+
+    private DrawResult decideOn(Outing outing, DecisionMode mode, User user) {
         UUID groupId = outing.getGroup().getId();
 
         List<Restaurant> candidates = restaurants.findAllForGroup(groupId).stream()
@@ -157,8 +214,12 @@ public class OutingService {
         outing.decide(winner, applied, user);
 
         log.info("Sortie du {} : {} retenu ({})", outing.getPlannedFor(), winner.getName(), applied);
-        return new Decision(outing, winner, applied, tie,
-                counts.getOrDefault(winner.getId(), 0L));
+        return new DrawResult(
+                outing.getId(),
+                RestaurantResponse.from(winner, counts.getOrDefault(winner.getId(), 0L), false),
+                applied.name().toLowerCase(),
+                tie,
+                user.getDisplayName());
     }
 
     /**
@@ -168,29 +229,32 @@ public class OutingService {
      * et ne pourra pas être notée. Avec un restaurant, celui-ci rejoint les
      * adresses déjà faites.
      *
-     * @return les sorties devenues notables, pour que l'appelant prévienne
-     *         leurs membres
+     * @return les sorties closes, passées ou annulées, pour que l'appelant
+     *         prévienne leurs groupes
      */
     @Transactional
-    public List<Outing> closeOverdue(LocalDate today) {
+    public List<OutingResponse> closeOverdue(LocalDate today) {
         List<Outing> overdue = outings.findOverdue(today);
         if (overdue.isEmpty()) {
             return List.of();
         }
 
-        List<Outing> closed = overdue.stream().peek(outing -> {
+        List<OutingResponse> closed = new ArrayList<>();
+        int rateable = 0;
+        for (Outing outing : overdue) {
             outing.close();
             if (outing.getStatus() == OutingStatus.PASSEE) {
                 outing.getRestaurant().setStatus(RestaurantStatus.DEJA_FAIT);
+                rateable++;
             }
-        }).filter(o -> o.getStatus() == OutingStatus.PASSEE).toList();
+            closed.add(toResponse(outing));
+        }
 
-        log.info("{} sortie(s) close(s), dont {} à noter", overdue.size(), closed.size());
+        log.info("{} sortie(s) close(s), dont {} à noter", closed.size(), rateable);
         return closed;
     }
 
-    @Transactional(readOnly = true)
-    public Map<UUID, Long> voteCounts(UUID outingId) {
+    private Map<UUID, Long> voteCounts(UUID outingId) {
         Map<UUID, Long> counts = new HashMap<>();
         for (Object[] row : votes.countByRestaurantForOuting(outingId)) {
             counts.put((UUID) row[0], (Long) row[1]);
@@ -214,8 +278,19 @@ public class OutingService {
         return outing;
     }
 
-    /** Le verdict d'une décision, tel qu'il est annoncé au groupe. */
-    public record Decision(Outing outing, Restaurant winner, DecisionMode mode,
-                           boolean tie, long voteCount) {
+    private OutingResponse toResponse(Outing outing) {
+        return OutingResponse.from(outing,
+                outing.hasRestaurant() ? RestaurantResponse.from(outing.getRestaurant()) : null);
+    }
+
+    private static void requireNotPast(LocalDate date) {
+        if (date.isBefore(LocalDate.now(ZONE))) {
+            throw ApiException.badRequest("Cette date est déjà passée.");
+        }
+    }
+
+    private static ApiException alreadyPlanned() {
+        return ApiException.badRequest(
+                "Une sortie est déjà prévue. Annule-la ou attends qu'elle soit passée avant d'en prévoir une autre.");
     }
 }

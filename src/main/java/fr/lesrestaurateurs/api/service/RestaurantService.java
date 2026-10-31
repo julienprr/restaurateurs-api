@@ -1,9 +1,11 @@
 package fr.lesrestaurateurs.api.service;
 
+import fr.lesrestaurateurs.api.domain.Outing;
 import fr.lesrestaurateurs.api.domain.Restaurant;
 import fr.lesrestaurateurs.api.domain.RestaurantStatus;
 import fr.lesrestaurateurs.api.domain.User;
 import fr.lesrestaurateurs.api.domain.UserGroup;
+import fr.lesrestaurateurs.api.repo.OutingRepository;
 import fr.lesrestaurateurs.api.repo.RestaurantRepository;
 import fr.lesrestaurateurs.api.repo.VoteRepository;
 import fr.lesrestaurateurs.api.web.ApiException;
@@ -12,6 +14,7 @@ import fr.lesrestaurateurs.api.web.dto.SaveRestaurantRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -27,25 +30,34 @@ public class RestaurantService {
     private final RestaurantRepository restaurants;
     private final GroupService groupService;
     private final VoteRepository votes;
+    private final OutingRepository outings;
 
     public RestaurantService(RestaurantRepository restaurants, GroupService groupService,
-                             VoteRepository votes) {
+                             VoteRepository votes, OutingRepository outings) {
         this.restaurants = restaurants;
         this.groupService = groupService;
         this.votes = votes;
+        this.outings = outings;
     }
 
     @Transactional(readOnly = true)
     public List<RestaurantResponse> findForGroup(UUID groupId, User user) {
         groupService.requireMembership(groupId, user);
 
+        // Les voix affichées sont celles de la sortie en préparation. Sans
+        // sortie, personne ne vote : tous les compteurs sont à zéro.
         // Deux requêtes agrégées plutôt qu'un comptage par restaurant : la
         // liste tient en une seule page, inutile de la parcourir en boucle.
+        Optional<UUID> planned = outings.findPlannedForGroup(groupId).map(Outing::getId);
         Map<UUID, Long> counts = new HashMap<>();
-        for (Object[] row : votes.countByRestaurantForGroup(groupId)) {
-            counts.put((UUID) row[0], (Long) row[1]);
-        }
-        Set<UUID> mine = Set.copyOf(votes.findRestaurantIdsVotedBy(groupId, user.getId()));
+        planned.ifPresent(outingId -> {
+            for (Object[] row : votes.countByRestaurantForOuting(outingId)) {
+                counts.put((UUID) row[0], (Long) row[1]);
+            }
+        });
+        Set<UUID> mine = planned
+                .map(outingId -> Set.copyOf(votes.findRestaurantIdsVotedBy(outingId, user.getId())))
+                .orElse(Set.of());
 
         return restaurants.findAllForGroup(groupId).stream()
                 .map(restaurant -> RestaurantResponse.from(

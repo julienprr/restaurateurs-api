@@ -48,6 +48,9 @@ app:
   log-magic-link: ${LOG_MAGIC_LINK:true}
   # Cookie de session en Secure : à activer en production (HTTPS).
   cookie-secure: ${COOKIE_SECURE:false}
+  # Jeton exigé par les routes /api/admin/** (en-tête X-Admin-Token).
+  # Vide par défaut : ces routes répondent alors 404, comme si elles n'existaient pas.
+  admin-token: ${ADMIN_TOKEN:}
 
 logging:
   level:

@@ -34,8 +34,8 @@ sorties, notes, classement et emails de notification.
 Le processus métier y est arrêté avec Julien, la migration est écrite et
 vérifiée sur une copie de la production, et la suite du travail est détaillée.
 
-Sur cette branche, le projet ne compile pas : trois appels devenus caducs
-subsistent, listés dans ce document.
+Le backend des sorties est terminé et testé (étape 1). La suite commence par
+le front (étape 2).
 
 ## Décisions techniques, à ne pas re-litiger
 

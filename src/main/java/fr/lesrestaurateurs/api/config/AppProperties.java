@@ -12,6 +12,8 @@ public record AppProperties(
         int magicLinkTtlMinutes,
         int sessionTtlDays,
         boolean logMagicLink,
-        boolean cookieSecure
+        boolean cookieSecure,
+        /** Jeton des routes d'administration. Vide : ces routes sont désactivées. */
+        String adminToken
 ) {
 }
