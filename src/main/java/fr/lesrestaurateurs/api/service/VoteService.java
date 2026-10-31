@@ -1,48 +1,44 @@
 package fr.lesrestaurateurs.api.service;
 
+import fr.lesrestaurateurs.api.domain.Outing;
 import fr.lesrestaurateurs.api.domain.Restaurant;
 import fr.lesrestaurateurs.api.domain.RestaurantStatus;
 import fr.lesrestaurateurs.api.domain.User;
 import fr.lesrestaurateurs.api.domain.Vote;
+import fr.lesrestaurateurs.api.repo.OutingRepository;
 import fr.lesrestaurateurs.api.repo.RestaurantRepository;
 import fr.lesrestaurateurs.api.repo.VoteRepository;
 import fr.lesrestaurateurs.api.web.ApiException;
-import fr.lesrestaurateurs.api.web.dto.DrawResult;
-import fr.lesrestaurateurs.api.web.dto.RestaurantResponse;
-import java.security.SecureRandom;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Les voix des membres pour la sortie en préparation.
+ *
+ * <p>On ne vote jamais dans le vide : il faut qu'une sortie soit prévue. C'est
+ * ce qui permet de garder l'historique de chaque décision.
+ */
 @Service
 public class VoteService {
 
-    private static final Logger log = LoggerFactory.getLogger(VoteService.class);
-
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     private final VoteRepository votes;
     private final RestaurantRepository restaurants;
-    private final GroupService groupService;
+    private final OutingRepository outings;
 
     public VoteService(VoteRepository votes, RestaurantRepository restaurants,
-                       GroupService groupService) {
+                       OutingRepository outings) {
         this.votes = votes;
         this.restaurants = restaurants;
-        this.groupService = groupService;
+        this.outings = outings;
     }
 
     /**
-     * Ajoute ou retire la voix du membre. Voter est une bascule : retaper sur
-     * le bouton retire son soutien.
+     * Ajoute ou retire la voix du membre sur la sortie en préparation. Voter
+     * est une bascule : retaper sur le bouton retire son soutien.
      *
-     * @return l'identifiant du groupe concerné, pour la diffusion aux autres
+     * @return l'identifiant du groupe, pour la diffusion aux autres membres
      */
     @Transactional
     public UUID toggle(UUID restaurantId, User user) {
@@ -52,95 +48,26 @@ public class VoteService {
         if (!restaurant.getGroup().hasMember(user)) {
             throw ApiException.notFound("Ce restaurant n'existe pas.");
         }
+        if (restaurant.getStatus() != RestaurantStatus.A_TESTER) {
+            throw ApiException.badRequest(
+                    "Vous y êtes déjà allés. Remets-le au tableau pour pouvoir voter.");
+        }
 
-        votes.findByRestaurantIdAndUserId(restaurantId, user.getId())
+        UUID groupId = restaurant.getGroup().getId();
+        Outing outing = outings.findPlannedForGroup(groupId)
+                .orElseThrow(() -> ApiException.badRequest(
+                        "Aucune sortie n'est prévue. Prévois-en une pour ouvrir le vote."));
+
+        votes.findByOutingIdAndRestaurantIdAndUserId(outing.getId(), restaurantId, user.getId())
                 .ifPresentOrElse(
                         votes::delete,
-                        () -> votes.save(new Vote(restaurant, user)));
+                        () -> votes.save(new Vote(outing, restaurant, user)));
 
-        return restaurant.getGroup().getId();
-    }
-
-    @Transactional
-    public int clearVotes(UUID groupId, User user) {
-        groupService.requireMembership(groupId, user);
-        int removed = votes.deleteAllForGroup(groupId);
-        log.info("{} a remis les votes à zéro sur le groupe {}", user.getEmail(), groupId);
-        return removed;
-    }
-
-    /**
-     * Désigne le restaurant du soir parmi ceux qui restent à tester.
-     *
-     * <p>Deux modes, conformément au brief §2 :
-     * <ul>
-     *   <li>{@code hasard} : tirage au sort parmi toutes les adresses à tester</li>
-     *   <li>{@code votes} : celle qui a le plus de voix ; en cas d'égalité, le
-     *       sort départage les ex æquo</li>
-     * </ul>
-     */
-    @Transactional(readOnly = true)
-    public DrawResult draw(UUID groupId, String mode, User user) {
-        groupService.requireMembership(groupId, user);
-
-        List<Restaurant> candidates = restaurants.findAllForGroup(groupId).stream()
-                .filter(restaurant -> restaurant.getStatus() == RestaurantStatus.A_TESTER)
-                .toList();
-
-        if (candidates.isEmpty()) {
-            throw ApiException.badRequest(
-                    "Aucune adresse à tester. Ajoutes-en une, ou remets-en une au tableau.");
-        }
-
-        Map<UUID, Long> voteCounts = voteCounts(groupId);
-        Set<UUID> myVotes = Set.copyOf(votes.findRestaurantIdsVotedBy(groupId, user.getId()));
-
-        List<Restaurant> pool = candidates;
-        boolean byVotes = "votes".equals(mode);
-        boolean tie = false;
-
-        if (byVotes) {
-            long best = candidates.stream()
-                    .mapToLong(restaurant -> voteCounts.getOrDefault(restaurant.getId(), 0L))
-                    .max()
-                    .orElse(0);
-
-            // Personne n'a voté : on retombe sur le hasard plutôt que de
-            // désigner arbitrairement le premier de la liste.
-            if (best > 0) {
-                pool = candidates.stream()
-                        .filter(r -> voteCounts.getOrDefault(r.getId(), 0L) == best)
-                        .toList();
-                tie = pool.size() > 1;
-            } else {
-                byVotes = false;
-            }
-        }
-
-        Restaurant winner = pool.get(RANDOM.nextInt(pool.size()));
-        log.info("Décision ({}) sur le groupe {} : {}", mode, groupId, winner.getName());
-
-        return new DrawResult(
-                RestaurantResponse.from(
-                        winner,
-                        voteCounts.getOrDefault(winner.getId(), 0L),
-                        myVotes.contains(winner.getId())),
-                byVotes ? "votes" : "hasard",
-                tie,
-                user.getDisplayName());
+        return groupId;
     }
 
     @Transactional(readOnly = true)
-    public Map<UUID, Long> voteCounts(UUID groupId) {
-        Map<UUID, Long> counts = new HashMap<>();
-        for (Object[] row : votes.countByRestaurantForGroup(groupId)) {
-            counts.put((UUID) row[0], (Long) row[1]);
-        }
-        return counts;
-    }
-
-    @Transactional(readOnly = true)
-    public Set<UUID> votedBy(UUID groupId, User user) {
-        return Set.copyOf(votes.findRestaurantIdsVotedBy(groupId, user.getId()));
+    public Set<UUID> votedBy(UUID outingId, User user) {
+        return Set.copyOf(votes.findRestaurantIdsVotedBy(outingId, user.getId()));
     }
 }
