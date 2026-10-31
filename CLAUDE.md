@@ -34,8 +34,9 @@ sorties, notes, classement et emails de notification.
 Le processus métier y est arrêté avec Julien, la migration est écrite et
 vérifiée sur une copie de la production, et la suite du travail est détaillée.
 
-Le backend des sorties est terminé et testé (étape 1). La suite commence par
-le front (étape 2).
+Le backend (étape 1) et le front (étape 2) des sorties sont terminés. La
+suite : notes et commentaires (étape 3), ou un déploiement conjoint API et
+front avant.
 
 ## Décisions techniques, à ne pas re-litiger
 

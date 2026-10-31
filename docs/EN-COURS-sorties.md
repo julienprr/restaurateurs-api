@@ -113,17 +113,28 @@ au commit. Un test le vérifie.
 chaque création, changement de date, annulation ou clôture ; `draw_result`
 garde son nom et gagne un champ `outingId`.
 
-## Ce qui reste, dans l'ordre
+## Étape 2, le front : faite
 
-**2. Le front**
-- Écran de vote conditionnel : pas de sortie, sortie sans restaurant, sortie
-  décidée
-- Sélecteur de date
-- Bouton « Choisir ce soir », avec la proposition d'avancer la sortie prévue
-  en cas de 409
-- Le bouton de tirage actuel appelle `/groups/{id}/draw`, qui n'existe plus :
-  le brancher sur `/outings/{id}/decide`
-- `events.js` : nouveaux événements SSE
+Dépôt `restaurateurs-web`, branche `feature/sorties`, commit `44f0d8c`.
+
+- L'onglet « La sortie » (anciennement « Choisir ce soir ») affiche l'état :
+  pas de sortie, sortie sans restaurant, sortie décidée.
+- Sélecteur de date natif (`OutingDateSheet`), borné à aujourd'hui, heure de
+  Paris (`src/lib/outings.js`).
+- « Choisir ce soir » : sur 409, un panneau propose d'avancer la sortie
+  prévue à ce soir (PATCH de la date, puis tirage).
+- Les boutons de décision appellent `/outings/{id}/decide`. « Effacer tous
+  les votes » a disparu.
+- SSE : `outing_changed` et `draw_result` rafraîchissent la sortie.
+- Vérifié à la main dans le navigateur, par Claude puis par Julien. Le front
+  n'a pas de tests automatisés : pas de framework de test configuré.
+
+**Déploiement** : l'API et le front sont prêts tous les deux et doivent
+partir ensemble (l'ancien front appelle `/groups/{id}/draw`, supprimée).
+Prendre un dump de la production juste avant, la migration V2 s'appliquant
+au démarrage de l'API.
+
+## Ce qui reste, dans l'ordre
 
 **3. Notes et commentaires**
 - Table `ratings`, note de 1 à 5, commentaire facultatif, modifiable
