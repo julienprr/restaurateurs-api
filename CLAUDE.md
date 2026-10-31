@@ -25,6 +25,18 @@ API REST de l'application « Les Restaurateurs ». Le produit est décrit dans
 Trois dépôts : cette API, `restaurateurs-web` (front Svelte),
 `vps-cluster-k3s` (manifests k3s).
 
+## Travail en cours
+
+Une fonctionnalité est en chantier sur la branche **`feature/sorties`** :
+sorties, notes, classement et emails de notification.
+
+**Lire [docs/EN-COURS-sorties.md](docs/EN-COURS-sorties.md) avant d'y toucher.**
+Le processus métier y est arrêté avec Julien, la migration est écrite et
+vérifiée sur une copie de la production, et la suite du travail est détaillée.
+
+Sur cette branche, le projet ne compile pas : trois appels devenus caducs
+subsistent, listés dans ce document.
+
 ## Décisions techniques, à ne pas re-litiger
 
 - **Spring Boot 3.5**, pas la 4.x : ligne la mieux documentée.
