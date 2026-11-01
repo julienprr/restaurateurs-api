@@ -221,6 +221,33 @@ class OutingApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$[0].ratings[0].mine").value(true));
     }
 
+    @Test
+    @DisplayName("classement : restaurants et membres, avec rang et moyenne")
+    void ranking() throws Exception {
+        String created = mvc.perform(post("/api/groups/{id}/outings", group.getId())
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(dateBody(NEXT_WEEK)))
+                .andReturn().getResponse().getContentAsString();
+        String outingId = JsonPath.read(created, "$.id");
+        mvc.perform(post("/api/outings/{id}/decide", outingId).cookie(session));
+        mvc.perform(post("/api/admin/outings/close")
+                .header("X-Admin-Token", ADMIN_TOKEN)
+                .param("today", NEXT_WEEK.plusDays(1).toString()));
+        mvc.perform(put("/api/outings/{id}/rating", outingId)
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"score\":3}"));
+
+        mvc.perform(get("/api/groups/{id}/ranking", group.getId()).cookie(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.restaurants[0].name").value("Sushi"))
+                .andExpect(jsonPath("$.restaurants[0].rank").value(1))
+                .andExpect(jsonPath("$.restaurants[0].average").value(3.0))
+                .andExpect(jsonPath("$.members[0].name").value("Alice"))
+                .andExpect(jsonPath("$.members[0].mine").value(true));
+    }
+
     private static String dateBody(LocalDate date) {
         return "{\"plannedFor\":\"" + date + "\"}";
     }

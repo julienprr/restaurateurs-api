@@ -1,7 +1,7 @@
 # En cours : les sorties, les notes et le classement
 
-Branche `feature/sorties`, dans l'API et dans le front. Étapes 1 à 3
-faites (sorties et notes) ; la suite est l'étape 4, historique et classement.
+Branche `feature/sorties`, dans l'API et dans le front. Étapes 1 à 4
+faites (sorties, notes, classement) ; reste l'étape 5, les emails.
 
 À lire en entier avant de reprendre.
 
@@ -156,12 +156,27 @@ Côté API :
 
 Côté front : `PastOutings.svelte` et `RatingSheet.svelte`.
 
-## Ce qui reste, dans l'ordre
+## Étape 4, le classement : faite
 
-**4. Historique et classement**
-- Écran « Nos sorties »
-- Note d'un restaurant : moyenne de ses sorties
-- Note d'un membre : moyenne des restaurants qu'il a proposés (`added_by`)
+Règles validées avec Julien le 31 octobre 2026 :
+
+- **un restaurant** : la moyenne de ses sorties notées, chaque sortie pesant
+  autant quel que soit son nombre de notes (et non la moyenne de toutes les
+  notes) ;
+- **un membre** : la moyenne des restaurants qu'il a proposés (`added_by`) ;
+  un restaurant jamais noté est ignoré, et un membre sans restaurant noté
+  apparaît « pas encore classé » ;
+- les ex aequo partagent leur rang : 1, 1, 3 ;
+- affiché en haut de l'onglet « Nos sorties ».
+
+`GET /api/groups/{id}/ranking`, calculé en mémoire par `RankingService` à
+chaque appel : rien n'est stocké, donc rien ne peut se désynchroniser. Le
+front recharge le classement sur `ratings_changed` et `outing_changed`.
+
+`PRODUIT.md` a été mis à jour : notes et historique ne sont plus dans la liste
+de ce qui est volontairement absent.
+
+## Ce qui reste, dans l'ordre
 
 **5. Les emails**
 

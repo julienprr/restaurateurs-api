@@ -6,10 +6,13 @@ Un groupe WhatsApp servait à lister des idées de restaurants avant une sortie.
 Il est tombé en désuétude : une conversation n'est pas une liste, les adresses
 se perdent dans le fil, et le jour venu personne ne tranche.
 
-L'application remplace ce groupe sur deux usages, et deux seulement :
+L'application remplace ce groupe sur trois usages :
 
 1. **Alimenter** une liste commune d'adresses à tester.
 2. **Décider** le jour J, par vote ou par tirage au sort.
+3. **Se souvenir** des sorties, les noter, et en faire un classement.
+   Ajouté en octobre 2026, à la demande de Julien : le classement est assumé
+   comme un jeu entre amis.
 
 Priorité absolue : **la simplicité**. Chaque écran ajouté éloigne du but.
 
@@ -37,13 +40,27 @@ Le brief d'origine est conservé dans [docs/brief.md](docs/brief.md).
 - Type de cuisine et budget en choix rapides, jamais en saisie libre
 - Marquer « déjà fait », remettre « à tester », retirer
 
-**Décider ce soir**
+**La sortie**
+- Prévoir une sortie à une date : le vote s'ouvre. Une seule à la fois par
+  groupe, qu'on peut déplacer ou annuler
 - Voter pour autant d'adresses qu'on veut, le vote est une bascule
 - Les votes des autres apparaissent **en direct**, sans rafraîchir
 - Trancher selon les votes : le plus de voix gagne, le sort départage les ex æquo
 - Ou tirer au sort parmi toutes les adresses à tester
-- Le verdict s'affiche chez tous les membres connectés en même temps
-- Remettre les votes à zéro pour la prochaine fois
+- « Choisir ce soir » : la sortie du jour est créée et tirée au sort d'un coup
+- Le verdict s'affiche chez tous les membres connectés en même temps, et il
+  est enregistré sur la sortie
+- Le lendemain de la date, la sortie est close et le restaurant passe
+  « déjà fait ». Chaque sortie repart avec des votes à zéro
+
+**Nos sorties**
+- L'historique des sorties passées
+- Chacun note une sortie de 1 à 5, avec un commentaire facultatif, et peut
+  modifier sa note à tout moment. Les notes de tous sont visibles
+- Le classement des restaurants : la moyenne de leurs sorties notées, chaque
+  sortie pesant autant
+- Le classement des membres : la moyenne des restaurants qu'ils ont
+  proposés, ceux jamais notés étant ignorés
 
 ## Ce qui est volontairement absent
 
@@ -54,8 +71,6 @@ réflexe.
 |---|---|
 | Mot de passe, inscription | la friction tuerait l'usage avant qu'il ne démarre |
 | Filtres, recherche | avec vingt adresses, faire défiler suffit |
-| Commentaires, notes | le groupe WhatsApp existe toujours pour ça |
-| Historique des sorties | personne n'a demandé à relire le passé |
 | Notifications | une application entre amis n'a pas à réclamer l'attention |
 | Recherche de disponibilité | un sondage WhatsApp fait le travail |
 | Rôles, administration | un groupe d'amis n'est pas une hiérarchie : tout
@@ -63,8 +78,6 @@ réflexe.
 
 ## Limites connues
 
-- **Le résultat d'un tirage n'est pas enregistré.** Qui recharge la page le
-  perd. C'est cohérent avec l'absence d'historique, mais surprend parfois.
 - **Une seule réplique de l'API**, car les connexions temps réel vivent en
   mémoire. Suffisant pour un groupe d'amis, bloquant pour passer à l'échelle.
 - **Pas de suppression de compte ni de groupe.** Personne n'en a eu besoin.
@@ -76,8 +89,6 @@ réflexe.
 Par ordre de valeur perçue, à discuter avant d'implémenter.
 
 **Probablement utiles**
-- Enregistrer les sorties passées : qui a proposé, où on est allés, quand
-- Une note après la sortie, pour alimenter les décisions suivantes
 - Un filtre par ville, le jour où la liste dépassera trente adresses
 
 **À voir à l'usage**

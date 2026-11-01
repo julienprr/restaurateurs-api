@@ -4,10 +4,12 @@ import fr.lesrestaurateurs.api.domain.User;
 import fr.lesrestaurateurs.api.security.CurrentUser;
 import fr.lesrestaurateurs.api.service.GroupEventService;
 import fr.lesrestaurateurs.api.service.OutingService;
+import fr.lesrestaurateurs.api.service.RankingService;
 import fr.lesrestaurateurs.api.service.RatingService;
 import fr.lesrestaurateurs.api.web.dto.OutingResponse;
 import fr.lesrestaurateurs.api.web.dto.PastOutingResponse;
 import fr.lesrestaurateurs.api.web.dto.PlanOutingRequest;
+import fr.lesrestaurateurs.api.web.dto.RankingResponse;
 import fr.lesrestaurateurs.api.web.dto.RateOutingRequest;
 import jakarta.validation.Valid;
 import java.util.HashMap;
@@ -25,19 +27,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Prévoir une sortie, la consulter, la déplacer, l'annuler, puis la noter. */
+/** Prévoir une sortie, la consulter, la déplacer, l'annuler, la noter, et le classement qui en découle. */
 @RestController
 @RequestMapping("/api")
 public class OutingController {
 
     private final OutingService outingService;
     private final RatingService ratingService;
+    private final RankingService rankingService;
     private final GroupEventService events;
 
     public OutingController(OutingService outingService, RatingService ratingService,
-                            GroupEventService events) {
+                            RankingService rankingService, GroupEventService events) {
         this.outingService = outingService;
         this.ratingService = ratingService;
+        this.rankingService = rankingService;
         this.events = events;
     }
 
@@ -87,6 +91,12 @@ public class OutingController {
     public void cancel(@PathVariable UUID id, @CurrentUser User user) {
         UUID groupId = outingService.cancel(id, user);
         events.publish(groupId, "outing_changed", Map.of("outingId", id.toString()));
+    }
+
+    /** Le classement des restaurants et des membres, calculé à la demande. */
+    @GetMapping("/groups/{groupId}/ranking")
+    public RankingResponse ranking(@PathVariable UUID groupId, @CurrentUser User user) {
+        return rankingService.rank(groupId, user);
     }
 
     /**
