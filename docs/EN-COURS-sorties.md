@@ -1,7 +1,7 @@
 # En cours : les sorties, les notes et le classement
 
-Branche `feature/sorties`, dans l'API et dans le front. Étapes 1 à 4
-faites (sorties, notes, classement) ; reste l'étape 5, les emails.
+Branche `feature/sorties`, dans l'API et dans le front. Étapes 1 à 5
+faites (sorties, notes, classement, emails) ; reste le déploiement.
 
 À lire en entier avant de reprendre.
 
@@ -129,10 +129,8 @@ Dépôt `restaurateurs-web`, branche `feature/sorties`, commit `44f0d8c`.
 - Vérifié à la main dans le navigateur, par Claude puis par Julien. Le front
   n'a pas de tests automatisés : pas de framework de test configuré.
 
-**Déploiement** : l'API et le front sont prêts tous les deux et doivent
-partir ensemble (l'ancien front appelle `/groups/{id}/draw`, supprimée).
-Prendre un dump de la production juste avant, les migrations V2 et V3
-s'appliquant au démarrage de l'API.
+L'API et le front doivent partir ensemble : l'ancien front appelle
+`/groups/{id}/draw`, supprimée. Procédure complète en fin de document.
 
 ## Étape 3, les notes : faite
 
@@ -176,19 +174,49 @@ front recharge le classement sur `ratings_changed` et `outing_changed`.
 `PRODUIT.md` a été mis à jour : notes et historique ne sont plus dans la liste
 de ce qui est volontairement absent.
 
-## Ce qui reste, dans l'ordre
-
-**5. Les emails**
+## Étape 5, les emails : faite
 
 | Email | Déclencheur | Destinataires |
 |---|---|---|
 | Allez voter | création d'une sortie, **sauf par « choisir ce soir »** | les membres, **sauf le créateur** |
-| On va là | décision du restaurant | les membres, **sauf le décideur** |
-| Notez la sortie | job de clôture | tous les membres |
+| On va là | chaque décision, y compris quand on retranche (« changement ») | les membres, **sauf le décideur** |
+| Notez la sortie | job de clôture, sorties `PASSEE` seulement | tous les membres |
 | Nouvelle version | lancé à la main, une fois | tous les inscrits |
 
-Règles validées : ne jamais notifier l'auteur de l'action, un seul email par
-événement, aucun rappel.
+Décisions prises avec Julien le 1er novembre 2026 : « On va là » repart à
+chaque décision ; changer la date ou annuler n'envoie rien ; un lien de
+désinscription en bas de chaque email ; le texte de l'annonce est proposé par
+Claude et relu par Julien.
+
+Fonctionnement :
+
+- `OutingService` publie un `OutingEvent` ; `OutingNotifier` l'écoute
+  **après validation** de la transaction. Une sortie dont l'enregistrement
+  échoue n'envoie rien, et l'écouteur ne verrait de toute façon pas une sortie
+  non validée (vérifié : avec un écouteur immédiat, 9 tests sur 11 échouent).
+- Un email par destinataire : personne ne voit les adresses des autres.
+- Désinscription : `users.notifications_enabled` et `users.unsubscribe_token`
+  (V4). Le jeton est **en clair**, il ne permet que de couper les emails. Le
+  lien du corps mène à une page avec un bouton (les antivirus ouvrent les
+  liens) ; l'en-tête `List-Unsubscribe` pointe sur la route POST en un clic.
+- Annonce : la table `announcements` empêche un second envoi (409).
+- Tests : `NotificationTest`, avec `support/Mailbox` qui remplace l'envoi SMTP.
+
+## Ce qui reste : le déploiement
+
+L'API et le front doivent partir ensemble. Dans l'ordre :
+
+1. **Dump de la production**, juste avant : V2, V3 et V4 s'appliquent au
+   démarrage de l'API, et V2 est irréversible.
+2. Vérifier en production `APP_BASE_URL` (tous les liens des emails en
+   dépendent), `MAIL_FROM`, et définir `ADMIN_TOKEN` (clôture à la main,
+   annonce). Un ConfigMap modifié n'atteint le pod qu'après redémarrage.
+3. Fusionner `feature/sorties` dans `main` sur les deux dépôts, puis
+   déployer.
+4. Vérifier : migrations appliquées, une sortie prévue, un email reçu dans
+   une vraie boîte avec un lien qui mène au bon écran.
+5. Annonce : d'abord `?preview=` vers la boîte de Julien, relecture, puis
+   l'envoi général.
 
 ## Pièges à garder en tête
 

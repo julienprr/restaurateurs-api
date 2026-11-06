@@ -12,6 +12,7 @@ import fr.lesrestaurateurs.api.repo.OutingRepository;
 import fr.lesrestaurateurs.api.repo.RatingRepository;
 import fr.lesrestaurateurs.api.repo.RestaurantRepository;
 import fr.lesrestaurateurs.api.repo.VoteRepository;
+import fr.lesrestaurateurs.api.service.notifications.OutingEvent;
 import fr.lesrestaurateurs.api.web.ApiException;
 import fr.lesrestaurateurs.api.web.dto.DrawResult;
 import fr.lesrestaurateurs.api.web.dto.OutingResponse;
@@ -31,6 +32,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,15 +69,17 @@ public class OutingService {
     private final VoteRepository votes;
     private final RatingRepository ratings;
     private final GroupService groupService;
+    private final ApplicationEventPublisher events;
 
     public OutingService(OutingRepository outings, RestaurantRepository restaurants,
                          VoteRepository votes, RatingRepository ratings,
-                         GroupService groupService) {
+                         GroupService groupService, ApplicationEventPublisher events) {
         this.outings = outings;
         this.restaurants = restaurants;
         this.votes = votes;
         this.ratings = ratings;
         this.groupService = groupService;
+        this.events = events;
     }
 
     /**
@@ -94,7 +98,11 @@ public class OutingService {
         if (outings.findPlannedForGroup(groupId).isPresent()) {
             throw alreadyPlanned();
         }
-        return toResponse(create(group, date, user));
+        Outing outing = create(group, date, user);
+        // « Allez voter ». Pas depuis create() : « choisir ce soir » crée aussi
+        // une sortie, mais la tranche aussitôt, il n'y a pas de vote à ouvrir.
+        events.publishEvent(new OutingEvent.Planned(outing.getId()));
+        return toResponse(outing);
     }
 
     /**
@@ -232,7 +240,9 @@ public class OutingService {
         }
 
         Restaurant winner = pool.get(RANDOM.nextInt(pool.size()));
+        boolean changed = outing.hasRestaurant();
         outing.decide(winner, applied, user);
+        events.publishEvent(new OutingEvent.Decided(outing.getId(), changed));
 
         log.info("Sortie du {} : {} retenu ({})", outing.getPlannedFor(), winner.getName(), applied);
         return new DrawResult(
@@ -272,6 +282,10 @@ public class OutingService {
         }
 
         log.info("{} sortie(s) close(s), dont {} à noter", closed.size(), rateable);
+        events.publishEvent(new OutingEvent.Closed(overdue.stream()
+                .filter(outing -> outing.getStatus() == OutingStatus.PASSEE)
+                .map(Outing::getId)
+                .toList()));
         return closed;
     }
 

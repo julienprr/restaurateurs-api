@@ -58,6 +58,11 @@ public class Fixtures {
         return restaurants.save(restaurant);
     }
 
+    /** Relit l'utilisateur en base, pour obtenir ce qu'elle a généré (jeton de désinscription). */
+    public User reload(User user) {
+        return users.findById(user.getId()).orElseThrow();
+    }
+
     public RestaurantStatus statusOf(Restaurant restaurant) {
         return restaurants.findById(restaurant.getId()).orElseThrow().getStatus();
     }

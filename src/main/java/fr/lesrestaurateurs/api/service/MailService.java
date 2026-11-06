@@ -1,6 +1,7 @@
 package fr.lesrestaurateurs.api.service;
 
 import fr.lesrestaurateurs.api.config.AppProperties;
+import fr.lesrestaurateurs.api.service.notifications.OutgoingMail;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
@@ -47,6 +48,34 @@ public class MailService {
             log.debug("Lien magique envoyé à {}", email);
         } catch (MailException | MessagingException e) {
             log.error("Échec de l'envoi du lien magique à {}", email, e);
+        }
+    }
+
+    /**
+     * Envoie un email de sortie ou d'annonce. Asynchrone, comme le lien
+     * magique : un échec est journalisé, jamais remonté.
+     *
+     * <p>Les en-têtes {@code List-Unsubscribe} permettent aux messageries
+     * d'afficher leur propre bouton « se désabonner ». Gmail les exige pour les
+     * envois groupés, et range sinon les emails en indésirables.
+     */
+    @Async
+    public void send(OutgoingMail mail) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(properties.mailFrom());
+            helper.setTo(mail.to());
+            helper.setSubject(mail.subject());
+            helper.setText(mail.text(), mail.html());
+            if (mail.unsubscribeUrl() != null) {
+                message.setHeader("List-Unsubscribe", "<" + mail.unsubscribeUrl() + ">");
+                message.setHeader("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
+            }
+            mailSender.send(message);
+            log.debug("« {} » envoyé à {}", mail.subject(), mail.to());
+        } catch (MailException | MessagingException e) {
+            log.error("Échec de l'envoi de « {} » à {}", mail.subject(), mail.to(), e);
         }
     }
 

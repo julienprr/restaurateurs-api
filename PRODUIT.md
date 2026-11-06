@@ -62,6 +62,13 @@ Le brief d'origine est conservé dans [docs/brief.md](docs/brief.md).
 - Le classement des membres : la moyenne des restaurants qu'ils ont
   proposés, ceux jamais notés étant ignorés
 
+**Les emails**
+- « Allez voter » quand une sortie est prévue, « On va là » quand le
+  restaurant est choisi (ou changé), « Notez la sortie » le lendemain
+- Jamais à l'auteur de l'action, un seul par événement, aucun rappel
+- Un lien en bas de chaque email les coupe ; on les rétablit depuis l'accueil.
+  Les emails de connexion, eux, partent toujours
+
 ## Ce qui est volontairement absent
 
 Ces choix sont délibérés, les réintroduire doit être une décision, pas un
@@ -71,7 +78,7 @@ réflexe.
 |---|---|
 | Mot de passe, inscription | la friction tuerait l'usage avant qu'il ne démarre |
 | Filtres, recherche | avec vingt adresses, faire défiler suffit |
-| Notifications | une application entre amis n'a pas à réclamer l'attention |
+| Notifications push, rappels | une application entre amis n'a pas à réclamer l'attention |
 | Recherche de disponibilité | un sondage WhatsApp fait le travail |
 | Rôles, administration | un groupe d'amis n'est pas une hiérarchie : tout
   membre peut tout modifier |

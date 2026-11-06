@@ -66,6 +66,9 @@ public class AuthController {
     public Map<String, Object> me(@CurrentUser(required = false) User user) {
         Map<String, Object> body = new HashMap<>();
         body.put("user", user == null ? null : UserResponse.from(user));
+        // À part de UserResponse, qui sert aussi à lister les membres d'un
+        // groupe : chacun ne voit que sa propre préférence.
+        body.put("notificationsEnabled", user == null ? null : user.isNotificationsEnabled());
         return body;
     }
 

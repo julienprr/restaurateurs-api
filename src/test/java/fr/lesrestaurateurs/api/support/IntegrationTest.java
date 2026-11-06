@@ -21,7 +21,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 @SpringBootTest(properties = "app.admin-token=" + IntegrationTest.ADMIN_TOKEN)
 @AutoConfigureMockMvc
-@Import(Fixtures.class)
+@Import({Fixtures.class, Mailbox.class})
 public abstract class IntegrationTest {
 
     protected static final String ADMIN_TOKEN = "jeton-de-test";
@@ -42,4 +42,7 @@ public abstract class IntegrationTest {
 
     @Autowired
     protected Fixtures fixtures;
+
+    @Autowired
+    protected Mailbox mailbox;
 }

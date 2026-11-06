@@ -57,6 +57,12 @@ service/    Règles métier
   RankingService      classement des restaurants et des membres
   GroupEventService   connexions SSE en mémoire, diffusion par groupe
   MailService         envoi asynchrone, versions texte et HTML
+service/notifications/   Emails de sortie
+  OutingEvent         ce qui arrive à une sortie (prévue, tranchée, close)
+  OutingNotifier      transforme ces événements en emails, après validation
+  NotificationMails   texte des emails, liens, désinscription
+  NotificationSettings  couper ou rétablir les emails
+  ReleaseAnnouncement email « nouvelle version », une seule fois
   Tokens, InviteCodes génération et hachage
   ExpiredTokenCleanup purge quotidienne
 service/maps/   Import depuis un lien Google Maps
@@ -97,6 +103,9 @@ db/migration/   Schéma, versionné par Flyway
 | POST | `/api/outings/{id}/decide?mode=votes\|hasard` | trancher, rejouable |
 | POST | `/api/groups/{id}/outings/tonight` | « choisir ce soir » : sortie du jour tranchée d'un coup, 409 si une autre est prévue |
 | POST | `/api/admin/outings/close?today=AAAA-MM-JJ` | clôture à la main, en-tête `X-Admin-Token` |
+| POST | `/api/admin/announcements/release?preview=email` | email « nouvelle version » : avec `preview`, à ce seul compte ; sans, à tous, une seule fois |
+| POST | `/api/notifications/unsubscribe?token=` | couper les emails de sortie depuis un email, sans connexion |
+| PUT | `/api/notifications` | `{"enabled": true\|false}`, depuis l'application |
 | GET | `/api/groups/{id}/events` | flux temps réel (SSE) |
 | GET | `/api/health` | sonde de vie |
 

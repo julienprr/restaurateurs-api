@@ -3,11 +3,13 @@ package fr.lesrestaurateurs.api.web;
 import fr.lesrestaurateurs.api.config.AppProperties;
 import fr.lesrestaurateurs.api.service.OutingClosure;
 import fr.lesrestaurateurs.api.service.OutingService;
+import fr.lesrestaurateurs.api.service.notifications.ReleaseAnnouncement;
 import fr.lesrestaurateurs.api.web.dto.OutingResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -27,10 +29,13 @@ public class AdminController {
 
     private final AppProperties props;
     private final OutingClosure closure;
+    private final ReleaseAnnouncement announcement;
 
-    public AdminController(AppProperties props, OutingClosure closure) {
+    public AdminController(AppProperties props, OutingClosure closure,
+                           ReleaseAnnouncement announcement) {
         this.props = props;
         this.closure = closure;
+        this.announcement = announcement;
     }
 
     /**
@@ -46,6 +51,22 @@ public class AdminController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate today) {
         requireAdmin(token);
         return closure.closeOverdue(today != null ? today : LocalDate.now(OutingService.ZONE));
+    }
+
+    /**
+     * L'email « Nouvelle version ». Avec {@code preview}, il ne part qu'à ce
+     * compte et peut être renvoyé ; sans, il part à tous, une seule fois.
+     */
+    @PostMapping("/announcements/release")
+    public Map<String, Object> announceRelease(
+            @RequestHeader(value = "X-Admin-Token", required = false) String token,
+            @RequestParam(required = false) String preview) {
+        requireAdmin(token);
+        if (preview != null) {
+            announcement.preview(preview);
+            return Map.of("preview", preview);
+        }
+        return Map.of("recipients", announcement.sendToAll());
     }
 
     private void requireAdmin(String token) {

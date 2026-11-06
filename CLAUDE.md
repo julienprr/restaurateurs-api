@@ -34,8 +34,8 @@ sorties, notes, classement et emails de notification.
 Le processus métier y est arrêté avec Julien, la migration est écrite et
 vérifiée sur une copie de la production, et la suite du travail est détaillée.
 
-Les sorties, les notes et le classement (étapes 1 à 4) sont terminés. Reste
-l'étape 5, les emails.
+Les cinq étapes sont terminées (sorties, notes, classement, emails). Reste le
+déploiement, dont la procédure est dans ce document.
 
 ## Décisions techniques, à ne pas re-litiger
 

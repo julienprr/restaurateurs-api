@@ -26,6 +26,17 @@ public class User {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
+    /** Faux : le membre a coupé les emails de sortie. Ceux de connexion partent toujours. */
+    @Column(name = "notifications_enabled", nullable = false)
+    private boolean notificationsEnabled = true;
+
+    /**
+     * Jeton du lien de désinscription, généré par la base à la création du
+     * compte (voir V4__notifications.sql). Jamais écrit par l'application.
+     */
+    @Column(name = "unsubscribe_token", insertable = false, updatable = false)
+    private String unsubscribeToken;
+
     protected User() {
         // requis par JPA
     }
@@ -53,5 +64,17 @@ public class User {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public boolean isNotificationsEnabled() {
+        return notificationsEnabled;
+    }
+
+    public void setNotificationsEnabled(boolean notificationsEnabled) {
+        this.notificationsEnabled = notificationsEnabled;
+    }
+
+    public String getUnsubscribeToken() {
+        return unsubscribeToken;
     }
 }
