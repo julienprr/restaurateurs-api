@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.HtmlUtils;
@@ -87,8 +88,17 @@ public class NotificationMails {
                 "Noter la sortie", groupLink(outing, "sorties"));
     }
 
-    /** L'annonce de la version « sorties », à tous les inscrits. */
-    public OutgoingMail release(User to) {
+    /**
+     * L'annonce de la version « sorties », à tous les inscrits.
+     *
+     * @param onlyGroup le groupe du destinataire s'il n'en a qu'un : le bouton
+     *                  ouvre alors « Nos sorties », où l'on note. Nul sinon :
+     *                  le bouton mène à l'accueil, d'où l'on choisit le groupe.
+     */
+    public OutgoingMail release(User to, UUID onlyGroup) {
+        String link = onlyGroup == null
+                ? properties.baseUrl() + "/"
+                : properties.baseUrl() + "/groupes/" + onlyGroup + "?onglet=sorties";
         return compose(to, null,
                 "Les Restaurateurs : place aux sorties",
                 List.of("Nouveauté dans Les Restaurateurs : les sorties.",
@@ -96,9 +106,11 @@ public class NotificationMails {
                                 + "Pas envie d'attendre ? « Choisir ce soir » tire une adresse au sort, tout de suite.",
                         "Le lendemain, chacun note la sortie de 1 à 5. Les notes font un classement : "
                                 + "celui des restaurants, et celui des dénicheurs, selon les adresses qu'ils ont proposées.",
+                        "Vous êtes déjà sortis ensemble ? Pense à noter tes sorties passées : "
+                                + "c'est ce qui lance le classement.",
                         "Tu recevras désormais un email quand une sortie est prévue, quand le restaurant est choisi, "
                                 + "et le lendemain pour la noter. Un lien en bas de chaque email permet de les couper."),
-                "Ouvrir l'application", properties.baseUrl() + "/");
+                "Noter mes sorties", link);
     }
 
     /**

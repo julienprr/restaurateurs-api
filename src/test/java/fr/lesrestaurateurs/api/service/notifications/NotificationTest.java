@@ -220,7 +220,8 @@ class NotificationTest extends IntegrationTest {
     @DisplayName("annonce de version : aperçu à une adresse, puis une seule fois à tous")
     void releaseAnnouncement(@Autowired ReleaseAnnouncement announcement) {
         announcement.preview(alice.getEmail());
-        assertThat(single(alice).subject()).isEqualTo("Les Restaurateurs : place aux sorties");
+        Mail preview = single(alice);
+        assertThat(preview.subject()).isEqualTo("Les Restaurateurs : place aux sorties");
         assertThat(mailbox.settledFor(bob.getEmail())).isEmpty();
 
         settings.setEnabled(carol, false);
@@ -231,6 +232,21 @@ class NotificationTest extends IntegrationTest {
         assertThat(mailbox.settledFor(carol.getEmail())).isEmpty();
         assertThatThrownBy(announcement::sendToAll).isInstanceOfSatisfying(ApiException.class,
                 e -> assertThat(e.getStatus()).isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    @Test
+    @DisplayName("annonce de version : le bouton ouvre « Nos sorties » du groupe, ou l'accueil si on en a plusieurs")
+    void releaseLinksToTheOnlyGroup(@Autowired ReleaseAnnouncement announcement) {
+        announcement.preview(alice.getEmail());
+        assertThat(single(alice).text())
+                .contains("Pense à noter tes sorties passées")
+                .contains("Noter mes sorties : http://localhost:5173/groupes/" + group.getId() + "?onglet=sorties");
+
+        User dave = fixtures.user("Dave");
+        fixtures.group(dave);
+        fixtures.group(dave);
+        announcement.preview(dave.getEmail());
+        assertThat(single(dave).text()).contains("Noter mes sorties : http://localhost:5173/\n");
     }
 
     /** Attend l'unique email reçu par ce membre. */

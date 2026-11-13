@@ -1,10 +1,13 @@
 package fr.lesrestaurateurs.api.service.notifications;
 
 import fr.lesrestaurateurs.api.domain.User;
+import fr.lesrestaurateurs.api.repo.UserGroupRepository;
 import fr.lesrestaurateurs.api.repo.UserRepository;
 import fr.lesrestaurateurs.api.service.MailService;
 import fr.lesrestaurateurs.api.web.ApiException;
+import fr.lesrestaurateurs.api.web.dto.GroupSummary;
 import java.util.List;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -24,13 +27,15 @@ public class ReleaseAnnouncement {
     private static final Logger log = LoggerFactory.getLogger(ReleaseAnnouncement.class);
 
     private final UserRepository users;
+    private final UserGroupRepository groups;
     private final NotificationMails mails;
     private final MailService mailService;
     private final JdbcClient jdbc;
 
-    public ReleaseAnnouncement(UserRepository users, NotificationMails mails,
+    public ReleaseAnnouncement(UserRepository users, UserGroupRepository groups, NotificationMails mails,
                                MailService mailService, JdbcClient jdbc) {
         this.users = users;
+        this.groups = groups;
         this.mails = mails;
         this.mailService = mailService;
         this.jdbc = jdbc;
@@ -44,7 +49,7 @@ public class ReleaseAnnouncement {
     public void preview(String email) {
         User user = users.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() -> ApiException.notFound("Aucun compte avec cette adresse."));
-        mailService.send(mails.release(user));
+        mailService.send(mail(user));
     }
 
     /** @return le nombre de destinataires */
@@ -65,8 +70,15 @@ public class ReleaseAnnouncement {
             throw ApiException.conflict("Cette annonce est déjà partie.");
         }
 
-        recipients.forEach(user -> mailService.send(mails.release(user)));
+        recipients.forEach(user -> mailService.send(mail(user)));
         log.info("Annonce {} envoyée à {} inscrits", NotificationMails.RELEASE_KEY, recipients.size());
         return recipients.size();
+    }
+
+    /** Le bouton mène au groupe du destinataire s'il n'en a qu'un, sinon à l'accueil. */
+    private OutgoingMail mail(User user) {
+        List<GroupSummary> memberships = groups.findSummariesForUser(user.getId());
+        UUID onlyGroup = memberships.size() == 1 ? memberships.get(0).id() : null;
+        return mails.release(user, onlyGroup);
     }
 }
